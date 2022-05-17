@@ -6,5 +6,5 @@ name = "da14531-hal"
 version = "0.1.0"
 
 [dependencies]
-da14531 = {path = "../da14531"}
+da14531 = "0.1.0"
 embedded-hal = {version = "0.2.7", features = ["unproven"]}
