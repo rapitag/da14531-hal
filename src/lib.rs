@@ -3,6 +3,7 @@
 pub mod gpio;
 pub mod prelude;
 pub mod watchdog;
+pub mod crg_aon;
 
 pub use da14531 as pac;
 
