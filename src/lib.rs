@@ -1,11 +1,13 @@
 #![no_std]
 
+pub mod crg_aon;
 pub mod gpio;
+pub mod i2c;
 pub mod prelude;
 pub mod watchdog;
-pub mod crg_aon;
 
 pub use da14531 as pac;
+pub use embedded_hal as hal;
 
 mod sealed {
     pub trait Sealed {}
