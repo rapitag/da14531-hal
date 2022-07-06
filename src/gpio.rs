@@ -18,18 +18,54 @@ pub struct PullUp;
 /// Output mode (type state).
 pub struct Output;
 
+/// Alternate function mode (type state)
+pub struct AlternateFunction<const PID: u8, const PUPD: u8>;
+
+macro_rules! alternate_functions {
+    (
+            $($AF:ident: ($pid:literal, $pupd:literal)),+
+    ) => {
+        $(
+            paste::paste! {
+                pub type [<Af $AF>] = AlternateFunction<$pid, $pupd>;
+            }
+        )+
+    };
+}
+
+alternate_functions! {
+    Uart1Rx: (1, 0b01),
+    Uart1Tx: (2, 0b01),
+    Uart2Rx: (3, 0b01),
+    Uart2Tx: (4, 0b01),
+    SysClk: (5, 0b01),
+    LpClk: (6, 0b01),
+    I2cScl: (9, 0),
+    I2cSda: (10, 0),
+    Pwm5: (11, 0b01),
+    Pwm6: (12, 0b01),
+    Pwm7: (13, 0b01),
+    Adc: (15, 0b01),
+    Pwm0: (16, 0b01),
+    Pwm1: (17, 0b01),
+    BleDiag: (18, 0b01),
+    Uart1Ctsn: (19, 0b01),
+    Uart1Rtsn: (20, 0b01),
+    Pwm2: (23, 0b01),
+    Pwm3: (24, 0b01),
+    Pwm4: (25, 0b01),
+    SpiDi: (26, 0b01),
+    SpiDo: (27, 0b01),
+    SpiClk: (28, 0b01),
+    SpiCsn0: (29, 0b01),
+    SpiCsn1: (30, 0b01)
+}
+
 /// Represents a digital input or output level.
 #[derive(Debug, Eq, PartialEq)]
 pub enum Level {
     Low,
     High,
-}
-
-/// A GPIO port with up to 16 pins.
-#[derive(Debug, Eq, PartialEq)]
-pub enum Port {
-    /// Port 0
-    Port0,
 }
 
 // ===============================================================
@@ -39,10 +75,7 @@ pub enum Port {
 // ===============================================================
 /// Generic $PX pin
 pub struct Pin<MODE> {
-    /// 00AB BBBB
-    /// A: Port
-    /// B: Pin
-    pin_port: u8,
+    pin: u8,
     _mode: PhantomData<MODE>,
 }
 
@@ -52,51 +85,25 @@ use crate::hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin};
 use void::Void;
 
 impl<MODE> Pin<MODE> {
-    fn new(port: Port, pin: u8) -> Self {
-        let port_bits = match port {
-            Port::Port0 => 0x00,
-        };
+    fn new(pin: u8) -> Self {
         Self {
-            pin_port: pin | port_bits,
-            _mode: PhantomData,
-        }
-    }
-
-    pub unsafe fn from_psel_bits(psel_bits: u32) -> Self {
-        Self {
-            pin_port: psel_bits as u8,
+            pin,
             _mode: PhantomData,
         }
     }
 
     #[inline]
     pub fn pin(&self) -> u8 {
-        {
-            self.pin_port
-        }
-    }
-
-    #[inline]
-    pub fn port(&self) -> Port {
-        Port::Port0
-    }
-
-    #[inline]
-    pub fn psel_bits(&self) -> u32 {
-        self.pin_port as u32
+        self.pin
     }
 
     fn block(&self) -> &gpio::RegisterBlock {
-        let ptr = match self.port() {
-            Port::Port0 => P0::ptr(),
-        };
-
-        unsafe { &*ptr }
+        unsafe { &*P0::ptr() }
     }
 
     // ToDo: Port this section!
     pub(crate) fn pin_mode(&self) -> &gpio::P0_MODE_REG {
-        &self.block().p0_mode_reg[self.pin_port as usize]
+        &self.block().p0_mode_reg[self.pin as usize]
     }
 
     /// Convert the pin to be a floating input
@@ -111,7 +118,7 @@ impl<MODE> Pin<MODE> {
 
         Pin {
             _mode: PhantomData,
-            pin_port: self.pin_port,
+            pin: self.pin,
         }
     }
     pub fn into_pullup_input(self) -> Pin<Input<PullUp>> {
@@ -125,9 +132,10 @@ impl<MODE> Pin<MODE> {
 
         Pin {
             _mode: PhantomData,
-            pin_port: self.pin_port,
+            pin: self.pin,
         }
     }
+
     pub fn into_pulldown_input(self) -> Pin<Input<PullDown>> {
         self.pin_mode().write(|w| {
             unsafe {
@@ -139,7 +147,7 @@ impl<MODE> Pin<MODE> {
 
         Pin {
             _mode: PhantomData,
-            pin_port: self.pin_port,
+            pin: self.pin,
         }
     }
 
@@ -147,7 +155,7 @@ impl<MODE> Pin<MODE> {
     pub fn into_output(self, initial_output: Level) -> Pin<Output> {
         let mut pin = Pin {
             _mode: PhantomData,
-            pin_port: self.pin_port,
+            pin: self.pin,
         };
 
         match initial_output {
@@ -166,6 +174,23 @@ impl<MODE> Pin<MODE> {
         pin
     }
 
+    pub fn into_alternate<const PID: u8, const PUPD: u8>(
+        self,
+    ) -> Pin<AlternateFunction<PID, PUPD>> {
+        self.pin_mode().write(|w| {
+            unsafe {
+                w.pupd().bits(PUPD);
+                w.pid().bits(PID);
+            }
+            w
+        });
+
+        Pin {
+            _mode: PhantomData,
+            pin: self.pin,
+        }
+    }
+
     /// Disconnects the pin.
     ///
     /// In disconnected mode the pin cannot be used as input or output.
@@ -176,7 +201,7 @@ impl<MODE> Pin<MODE> {
 
         Pin {
             _mode: PhantomData,
-            pin_port: self.pin_port,
+            pin: self.pin,
         }
     }
 }
@@ -233,7 +258,7 @@ impl StatefulOutputPin for Pin<Output> {
 
 macro_rules! gpio {
     (
-        $PX:ident, $pxsvd:ident, $px:ident, $port_value:expr, [
+        $PX:ident, $pxsvd:ident, $px:ident, [
             $($PXi:ident: ($pxi:ident, $i:expr, $MODE:ty),)+
         ]
     ) => {
@@ -241,7 +266,6 @@ macro_rules! gpio {
         pub mod $px {
             use super::{
                 Pin,
-                Port,
 
                 Floating,
                 Disconnected,
@@ -250,6 +274,7 @@ macro_rules! gpio {
                 Output,
                 PullDown,
                 PullUp,
+                AlternateFunction,
 
                 PhantomData,
                 $PX
@@ -359,6 +384,22 @@ macro_rules! gpio {
                         pin
                     }
 
+                    pub fn into_alternate<const PID: u8, const PUPD: u8>(self) -> $PXi<AlternateFunction<PID, PUPD>> {
+                        let pin = $PXi {
+                            _mode: PhantomData,
+                        };
+
+                        unsafe { &(*$PX::ptr()).p0_mode_reg[$i] }.write(|w| {
+                            unsafe {
+                                w.pupd().bits(PUPD);
+                                w.pid().bits(PID);
+                            }
+                            w
+                        });
+
+                        pin
+                    }
+
 
                     /// Disconnects the pin.
                     ///
@@ -375,7 +416,7 @@ macro_rules! gpio {
 
                     /// Degrade to a generic pin struct, which can be used with peripherals
                     pub fn degrade(self) -> Pin<MODE> {
-                        Pin::new($port_value, $i)
+                        Pin::new($i)
                     }
                 }
 
@@ -434,7 +475,7 @@ macro_rules! gpio {
 // ===========================================================================
 // Definition of all the items used by the macros above.
 // ===========================================================================
-gpio!(P0, p0, p0, Port::Port0, [
+gpio!(P0, p0, p0, [
     P0_00: (p0_00,  0, Disconnected),
     P0_01: (p0_01,  1, Disconnected),
     P0_02: (p0_02,  2, Disconnected),

@@ -3,12 +3,14 @@ edition = "2021"
 rust-version = "1.60"
 
 name = "da14531-hal"
-version = "0.2.0"
+version = "0.2.1"
 
 [dependencies]
-da14531 = "0.2.0"
-embedded-hal = {version = "0.2.7", features = ["unproven"]}
+cortex-m = "0.7.5"
+da14531 = "0.2"
+embedded-hal = {version = "0.2", features = ["unproven"]}
+paste = "1.0"
 
 [dependencies.void]
 default-features = false
-version = "1.0.2"
+version = "1.0"
