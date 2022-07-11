@@ -3,7 +3,7 @@ edition = "2021"
 rust-version = "1.60"
 
 name = "da14531-hal"
-version = "0.2.1"
+version = "0.2.2"
 
 [dependencies]
 cortex-m = "0.7.5"

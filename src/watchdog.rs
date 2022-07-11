@@ -1,4 +1,4 @@
-use embedded_hal::watchdog::{Watchdog, WatchdogEnable};
+use embedded_hal::watchdog::{Watchdog, WatchdogDisable, WatchdogEnable};
 
 use crate::pac::SYS_WDOG;
 
@@ -26,17 +26,23 @@ impl SystemWatchdog {
 
         self.sys_wdog
             .watchdog_ctrl_reg
-            .write(|w| { w.nmi_rst().set_bit() });
+            .write(|w| w.nmi_rst().set_bit());
 
         // TODO: Implement this!
-        // wdg_resume (); 
+        // wdg_resume ();
         // -> SetWord16(RESET_FREEZE_REG, FRZ_WDOG);
     }
 
     pub fn feed(&mut self) {
         self.sys_wdog
             .watchdog_reg
-            .write(|w| unsafe { w.wdog_val().bits(self.period) });
+            .modify(|_, w| unsafe { w.wdog_val().bits(self.period) });
+    }
+
+    pub fn freeze(&mut self) {
+        let gpreg = unsafe { &*crate::pac::GPREG::ptr() };
+
+        gpreg.set_freeze_reg.modify(|_, w| w.frz_wdog().set_bit());
     }
 }
 
@@ -51,5 +57,11 @@ impl WatchdogEnable for SystemWatchdog {
 impl Watchdog for SystemWatchdog {
     fn feed(&mut self) {
         self.feed()
+    }
+}
+
+impl WatchdogDisable for SystemWatchdog {
+    fn disable(&mut self) {
+        self.freeze();
     }
 }

@@ -18,7 +18,9 @@ impl CrgAon {
 
     pub fn set_pad_latch_en(&mut self, state: bool) {
         unsafe {
-            (*CrgAon::ptr()).pad_latch_reg.write(|w| w.pad_latch_en().bit(state));
+            (*CrgAon::ptr())
+                .pad_latch_reg
+                .write(|w| w.pad_latch_en().bit(state));
         }
     }
 }

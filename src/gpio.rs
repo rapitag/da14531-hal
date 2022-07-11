@@ -1,5 +1,12 @@
 use core::marker::PhantomData;
 
+use void::Void;
+
+use crate::{
+    hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin},
+    pac::{gpio, GPIO as P0},
+};
+
 /// Disconnected pin in input mode (type state, reset value).
 pub struct Disconnected;
 
@@ -42,18 +49,18 @@ alternate_functions! {
     LpClk: (6, 0b01),
     I2cScl: (9, 0),
     I2cSda: (10, 0),
-    Pwm5: (11, 0b01),
-    Pwm6: (12, 0b01),
-    Pwm7: (13, 0b01),
+    Pwm5: (11, 0b11),
+    Pwm6: (12, 0b11),
+    Pwm7: (13, 0b11),
     Adc: (15, 0b01),
-    Pwm0: (16, 0b01),
-    Pwm1: (17, 0b01),
+    Pwm0: (16, 0b11),
+    Pwm1: (17, 0b11),
     BleDiag: (18, 0b01),
     Uart1Ctsn: (19, 0b01),
     Uart1Rtsn: (20, 0b01),
-    Pwm2: (23, 0b01),
-    Pwm3: (24, 0b01),
-    Pwm4: (25, 0b01),
+    Pwm2: (23, 0b11),
+    Pwm3: (24, 0b11),
+    Pwm4: (25, 0b11),
     SpiDi: (26, 0b01),
     SpiDo: (27, 0b01),
     SpiClk: (28, 0b01),
@@ -78,11 +85,6 @@ pub struct Pin<MODE> {
     pin: u8,
     _mode: PhantomData<MODE>,
 }
-
-use crate::pac::{gpio, GPIO as P0};
-
-use crate::hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin};
-use void::Void;
 
 impl<MODE> Pin<MODE> {
     fn new(pin: u8) -> Self {

@@ -3,8 +3,9 @@
 use core::ops::Deref;
 
 use crate::{
+    clock::{ClockController, PeripheralClock},
     gpio::{AfI2cScl, AfI2cSda, Disconnected, Pin},
-    pac::{i2c, CRG_TOP, I2C},
+    pac::{i2c, I2C},
 };
 
 pub enum I2cSpeed {
@@ -26,7 +27,7 @@ where
     T: Instance,
 {
     pub fn new(
-        crg_top: &CRG_TOP,
+        clock_controller: &mut ClockController,
         i2c: T,
         scl: Pin<Disconnected>,
         sda: Pin<Disconnected>,
@@ -36,10 +37,7 @@ where
         let _scl: Pin<AfI2cScl> = scl.into_alternate();
         let _sda: Pin<AfI2cSda> = sda.into_alternate();
 
-        cortex_m::interrupt::free(|_| {
-            // Enable the clock for the I2C Controller
-            crg_top.clk_per_reg.modify(|_, w| w.i2c_enable().set_bit());
-        });
+        clock_controller.set_peripheral_clock_state(PeripheralClock::I2c, true);
 
         // Disable the I2C Controller
         i2c.i2c_enable_reg.write(|w| w.ctrl_enable().clear_bit());
@@ -95,7 +93,7 @@ where
     }
 
     fn send_byte(&self, byte: u8) -> Result<(), Error> {
-        cortex_m::interrupt::free(|_| {
+        crate::cm::interrupt::free(|_| {
             // Prepare to transmit the write command byte
             self.0.i2c_data_cmd_reg.write(|w| {
                 w.i2c_cmd().clear_bit();
@@ -125,7 +123,7 @@ where
     }
 
     fn recv_byte(&self) -> Result<u8, Error> {
-        cortex_m::interrupt::free(|_| {
+        crate::cm::interrupt::free(|_| {
             // Prepare to transmit the read command byte
             self.0.i2c_data_cmd_reg.write(|w| w.i2c_cmd().set_bit());
         });
@@ -145,7 +143,7 @@ where
     }
 
     fn recv_byte_stop(&self) -> Result<u8, Error> {
-        cortex_m::interrupt::free(|_| {
+        crate::cm::interrupt::free(|_| {
             // Prepare to transmit the read command byte
             self.0.i2c_data_cmd_reg.write(|w| {
                 w.i2c_stop().set_bit();
@@ -185,7 +183,7 @@ where
         //         }
         //     }
 
-        cortex_m::interrupt::free(|_| {
+        crate::cm::interrupt::free(|_| {
             // Prepare to transmit the write command byte
             self.0.i2c_data_cmd_reg.write(|w| {
                 w.i2c_cmd().clear_bit();

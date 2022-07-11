@@ -1,22 +1,15 @@
 #![no_std]
 
+pub mod clock;
 pub mod crg_aon;
 pub mod gpio;
 pub mod i2c;
-pub mod prelude;
+pub mod interrupt;
+pub mod sleep;
+pub mod timer;
+pub mod wakeup;
 pub mod watchdog;
 
+pub use cortex_m as cm;
 pub use da14531 as pac;
 pub use embedded_hal as hal;
-
-mod sealed {
-    pub trait Sealed {}
-}
-
-pub(crate) use sealed::Sealed;
-
-fn stripped_type_name<T>() -> &'static str {
-    let s = core::any::type_name::<T>();
-    let p = s.split("::");
-    p.last().unwrap()
-}
