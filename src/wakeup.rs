@@ -19,12 +19,6 @@ impl WakeupController {
         Self { wkup }
     }
 
-    pub fn register_irq_handler(&mut self, handler: fn()) {
-        unsafe {
-            IRQ_HANDLER_WAKEUP = Some(handler);
-        }
-    }
-
     pub fn enable_irq(
         &mut self,
         clock_controller: &mut ClockController,
@@ -83,22 +77,3 @@ impl WakeupController {
         interrupt_controller.enable_irq(Irq::WakupQuadec);
     }
 }
-
-#[no_mangle]
-pub unsafe extern "C" fn WKUP_QUADEC_Handler() {
-    let wkup = &(*(crate::pac::WKUP::ptr()));
-
-    // Reset the interrupt
-    wkup.wkup_irq_status_reg
-        .modify(|_, w| w.wkup_irq_status().set_bit());
-
-    // No more interrupts of this kind
-    wkup.wkup_ctrl_reg
-        .modify(|_, w| w.wkup_enable_irq().clear_bit());
-
-    if let Some(handler) = IRQ_HANDLER_WAKEUP {
-        handler();
-    }
-}
-
-static mut IRQ_HANDLER_WAKEUP: Option<fn()> = None;
