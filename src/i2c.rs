@@ -3,16 +3,39 @@
 use core::ops::Deref;
 
 use crate::{
-    clock::{ClockController, PeripheralClock},
+    crg_top::CrgTop,
     gpio::{AfI2cScl, AfI2cSda, Disconnected, Pin},
     pac::{i2c, I2C},
 };
 
-pub enum I2cSpeed {
+/// Extension trait that constrains the `SYS_WDOG` peripheral
+pub trait I2cExt {
+    /// Constrains the `SYS_WDOG` peripheral so it plays nicely with the other abstractions
+    fn constrain(self) -> I2c;
+}
+
+impl I2cExt for I2C {
+    fn constrain(self) -> I2c {
+        I2c {
+            i2c: self,
+            pins: None,
+            speed: Default::default(),
+            addressing_mode: Default::default(),
+        }
+    }
+}
+
+pub enum Speed {
     /// 100 kbit/s
     Standard,
     /// 400 kbit/s
     FullSpeed,
+}
+
+impl Default for Speed {
+    fn default() -> Self {
+        Speed::Standard
+    }
 }
 
 pub enum AddressingMode {
@@ -20,45 +43,79 @@ pub enum AddressingMode {
     Bits10,
 }
 
-pub struct I2c<T>(T);
+impl Default for AddressingMode {
+    fn default() -> Self {
+        AddressingMode::Bits7
+    }
+}
 
-impl<T> I2c<T>
-where
-    T: Instance,
-{
-    pub fn new(
-        clock_controller: &mut ClockController,
-        i2c: T,
-        scl: Pin<Disconnected>,
-        sda: Pin<Disconnected>,
-        speed: I2cSpeed,
-        addressing_mode: AddressingMode,
-    ) -> Self {
-        let _scl: Pin<AfI2cScl> = scl.into_alternate();
-        let _sda: Pin<AfI2cSda> = sda.into_alternate();
+struct Pins {
+    sda: Pin<AfI2cSda>,
+    scl: Pin<AfI2cScl>,
+}
 
-        clock_controller.set_peripheral_clock_state(PeripheralClock::I2c, true);
+impl Pins {
+    fn new(sda: Pin<Disconnected>, scl: Pin<Disconnected>) -> Self {
+        Self {
+            scl: scl.into_alternate(),
+            sda: sda.into_alternate(),
+        }
+    }
+}
+
+pub struct I2c {
+    i2c: I2C,
+    pins: Option<Pins>,
+    speed: Speed,
+    addressing_mode: AddressingMode,
+}
+
+impl I2c {
+    pub fn set_pins(mut self, sda: Pin<Disconnected>, scl: Pin<Disconnected>) -> Self {
+        self.pins = Some(Pins::new(sda, scl));
+        self
+    }
+
+    pub fn set_speed(mut self, speed: Speed) -> Self {
+        self.speed = speed;
+        self
+    }
+
+    pub fn set_addressing_mode(mut self, addressing_mode: AddressingMode) -> Self {
+        self.addressing_mode = addressing_mode;
+        self
+    }
+
+    pub fn start(&self, crg_top: &CrgTop) {
+        assert!(self.pins.is_some());
+
+        // Enable peripheral clock
+        CrgTop::enable_peripheral::<I2C>(&crg_top);
 
         // Disable the I2C Controller
-        i2c.i2c_enable_reg.write(|w| w.ctrl_enable().clear_bit());
+        self.i2c
+            .i2c_enable_reg
+            .write(|w| w.ctrl_enable().clear_bit());
 
         // There is a two ic_clk delay when enabling or disabling the controller
-        while i2c.i2c_enable_reg.read().ctrl_enable().bit() {}
+        while self.i2c.i2c_enable_reg.read().ctrl_enable().bit() {}
 
         // Enable all interrupts
-        i2c.i2c_intr_mask_reg.write(|w| unsafe { w.bits(0) });
+        self.i2c.i2c_intr_mask_reg.write(|w| unsafe { w.bits(0) });
 
-        i2c.i2c_ss_scl_hcnt_reg
+        self.i2c
+            .i2c_ss_scl_hcnt_reg
             .write(|w| unsafe { w.bits(0x00000048) });
-        i2c.i2c_ss_scl_lcnt_reg
+        self.i2c
+            .i2c_ss_scl_lcnt_reg
             .write(|w| unsafe { w.bits(0x0000004F) });
 
-        i2c.i2c_con_reg.write(|w| {
+        self.i2c.i2c_con_reg.write(|w| {
             // Configure the speed mode
             unsafe {
-                w.i2c_speed().bits(match speed {
-                    I2cSpeed::Standard => 1,
-                    I2cSpeed::FullSpeed => 2,
+                w.i2c_speed().bits(match self.speed {
+                    Speed::Standard => 1,
+                    Speed::FullSpeed => 2,
                 });
             }
 
@@ -67,7 +124,7 @@ where
             w.i2c_slave_disable().set_bit();
 
             // Configure addressing mode
-            match addressing_mode {
+            match self.addressing_mode {
                 AddressingMode::Bits7 => {
                     w.i2c_10bitaddr_master().clear_bit();
                 }
@@ -80,22 +137,24 @@ where
         });
 
         // Set threshold for RX/TX FIFO
-        i2c.i2c_rx_tl_reg.write(|w| unsafe { w.rx_tl().bits(0) });
-        i2c.i2c_tx_tl_reg.write(|w| unsafe { w.rx_tl().bits(0) });
+        self.i2c
+            .i2c_rx_tl_reg
+            .write(|w| unsafe { w.rx_tl().bits(0) });
+        self.i2c
+            .i2c_tx_tl_reg
+            .write(|w| unsafe { w.rx_tl().bits(0) });
 
         // Enable the I2C Controller
-        i2c.i2c_enable_reg.write(|w| w.ctrl_enable().set_bit());
+        self.i2c.i2c_enable_reg.write(|w| w.ctrl_enable().set_bit());
 
         // There is a two ic_clk delay when enabling or disabling the controller
-        while !i2c.i2c_enable_reg.read().ctrl_enable().bit() {}
-
-        Self(i2c)
+        while !self.i2c.i2c_enable_reg.read().ctrl_enable().bit() {}
     }
 
     fn send_byte(&self, byte: u8) -> Result<(), Error> {
         crate::cm::interrupt::free(|_| {
             // Prepare to transmit the write command byte
-            self.0.i2c_data_cmd_reg.write(|w| {
+            self.i2c.i2c_data_cmd_reg.write(|w| {
                 w.i2c_cmd().clear_bit();
 
                 unsafe {
@@ -107,15 +166,15 @@ where
         });
 
         // Wait until TX FIFO is empty
-        while self.0.i2c_status_reg.read().tfe().bit_is_clear() {}
+        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
 
         // Wait until master has finished reading the response byte from slave device
-        while self.0.i2c_status_reg.read().mst_activity().bit_is_set() {}
+        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
 
         // Read the I2C_TX_ABRT_SOURCE_REG register
-        let abort_source = self.0.i2c_tx_abrt_source_reg.read().bits();
+        let abort_source = self.i2c.i2c_tx_abrt_source_reg.read().bits();
         if abort_source != 0 {
-            self.0.i2c_clr_tx_abrt_reg.read().bits();
+            self.i2c.i2c_clr_tx_abrt_reg.read().bits();
             Err(Error::Transmit)
         } else {
             Ok(())
@@ -125,19 +184,19 @@ where
     fn recv_byte(&self) -> Result<u8, Error> {
         crate::cm::interrupt::free(|_| {
             // Prepare to transmit the read command byte
-            self.0.i2c_data_cmd_reg.write(|w| w.i2c_cmd().set_bit());
+            self.i2c.i2c_data_cmd_reg.write(|w| w.i2c_cmd().set_bit());
         });
 
         // Wait for received data
-        while self.0.i2c_rxflr_reg.read().rxflr().bits() == 0 {}
+        while self.i2c.i2c_rxflr_reg.read().rxflr().bits() == 0 {}
 
-        let out = self.0.i2c_data_cmd_reg.read().dat().bits();
+        let out = self.i2c.i2c_data_cmd_reg.read().dat().bits();
 
         // Wait until TX FIFO is empty
-        while self.0.i2c_status_reg.read().tfe().bit_is_clear() {}
+        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
 
         // Wait until master has finished reading the byte from slave device
-        while self.0.i2c_status_reg.read().mst_activity().bit_is_set() {}
+        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
 
         Ok(out)
     }
@@ -145,7 +204,7 @@ where
     fn recv_byte_stop(&self) -> Result<u8, Error> {
         crate::cm::interrupt::free(|_| {
             // Prepare to transmit the read command byte
-            self.0.i2c_data_cmd_reg.write(|w| {
+            self.i2c.i2c_data_cmd_reg.write(|w| {
                 w.i2c_stop().set_bit();
                 w.i2c_cmd().set_bit();
                 w
@@ -153,15 +212,15 @@ where
         });
 
         // Wait for received data
-        while self.0.i2c_rxflr_reg.read().rxflr().bits() == 0 {}
+        while self.i2c.i2c_rxflr_reg.read().rxflr().bits() == 0 {}
 
-        let out = self.0.i2c_data_cmd_reg.read().dat().bits();
+        let out = self.i2c.i2c_data_cmd_reg.read().dat().bits();
 
         // Wait until TX FIFO is empty
-        while self.0.i2c_status_reg.read().tfe().bit_is_clear() {}
+        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
 
         // Wait until master has finished reading the byte from slave device
-        while self.0.i2c_status_reg.read().mst_activity().bit_is_set() {}
+        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
 
         Ok(out)
     }
@@ -169,23 +228,23 @@ where
     // TODO: Implement section
     fn send_byte_stop(&self, byte: u8) -> Result<(), Error> {
         //     // Clear stopped event.
-        //     self.0.events_stopped.write(|w| unsafe { w.bits(0) });
+        //     self.i2c.events_stopped.write(|w| unsafe { w.bits(0) });
 
         //     // Start stop condition.
-        //     self.0.tasks_stop.write(|w| unsafe { w.bits(1) });
+        //     self.i2c.tasks_stop.write(|w| unsafe { w.bits(1) });
 
         //     // Wait until stop was sent.
-        //     while self.0.events_stopped.read().bits() == 0 {
+        //     while self.i2c.events_stopped.read().bits() == 0 {
         //         // Bail out if we get an error instead.
-        //         if self.0.events_error.read().bits() != 0 {
-        //             self.0.events_error.write(|w| unsafe { w.bits(0) });
+        //         if self.i2c.events_error.read().bits() != 0 {
+        //             self.i2c.events_error.write(|w| unsafe { w.bits(0) });
         //             return Err(Error::Transmit);
         //         }
         //     }
 
         crate::cm::interrupt::free(|_| {
             // Prepare to transmit the write command byte
-            self.0.i2c_data_cmd_reg.write(|w| {
+            self.i2c.i2c_data_cmd_reg.write(|w| {
                 w.i2c_cmd().clear_bit();
                 w.i2c_stop().set_bit();
 
@@ -198,15 +257,15 @@ where
         });
 
         // Wait until TX FIFO is empty
-        while self.0.i2c_status_reg.read().tfe().bit_is_clear() {}
+        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
 
         // Wait until master has finished reading the response byte from slave device
-        while self.0.i2c_status_reg.read().mst_activity().bit_is_set() {}
+        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
 
         // Read the I2C_TX_ABRT_SOURCE_REG register
-        let abort_source = self.0.i2c_tx_abrt_source_reg.read().bits();
+        let abort_source = self.i2c.i2c_tx_abrt_source_reg.read().bits();
         if abort_source != 0 {
-            self.0.i2c_clr_tx_abrt_reg.read().bits();
+            self.i2c.i2c_clr_tx_abrt_reg.read().bits();
             Err(Error::Transmit)
         } else {
             Ok(())
@@ -277,30 +336,30 @@ where
     }
 
     fn set_slave_address(&mut self, address: u16) {
-        self.0
+        self.i2c
             .i2c_enable_reg
             .modify(|_, w| w.ctrl_enable().clear_bit());
-        while self.0.i2c_enable_reg.read().ctrl_enable().bit() {}
+        while self.i2c.i2c_enable_reg.read().ctrl_enable().bit() {}
 
         // Set Slave I2C address.
-        self.0
+        self.i2c
             .i2c_tar_reg
             .modify(|_, w| unsafe { w.ic_tar().bits(address) });
 
-        self.0
+        self.i2c
             .i2c_enable_reg
             .modify(|_, w| w.ctrl_enable().set_bit());
-        while !self.0.i2c_enable_reg.read().ctrl_enable().bit() {}
+        while !self.i2c.i2c_enable_reg.read().ctrl_enable().bit() {}
     }
     // TODO: port this section!
     // /// Return the raw interface to the underlying TWI peripheral.
     // pub fn free(self) -> (T, Pins) {
-    //     let scl = self.0.pselscl.read();
-    //     let sda = self.0.pselsda.read();
-    //     self.0.pselscl.reset();
-    //     self.0.pselsda.reset();
+    //     let scl = self.i2c.pselscl.read();
+    //     let sda = self.i2c.pselsda.read();
+    //     self.i2c.pselscl.reset();
+    //     self.i2c.pselsda.reset();
     //     (
-    //         self.0,
+    //         self.i2c,
     //         Pins {
     //             scl: unsafe { Pin::from_psel_bits(scl.bits()) },
     //             sda: unsafe { Pin::from_psel_bits(sda.bits()) },
@@ -309,10 +368,7 @@ where
     // }
 }
 
-impl<T> embedded_hal::blocking::i2c::Write for I2c<T>
-where
-    T: Instance,
-{
+impl embedded_hal::blocking::i2c::Write for I2c {
     type Error = Error;
 
     fn write<'w>(&mut self, addr: u8, bytes: &'w [u8]) -> Result<(), Error> {
@@ -320,10 +376,7 @@ where
     }
 }
 
-impl<T> embedded_hal::blocking::i2c::Read for I2c<T>
-where
-    T: Instance,
-{
+impl embedded_hal::blocking::i2c::Read for I2c {
     type Error = Error;
 
     fn read<'w>(&mut self, addr: u8, bytes: &'w mut [u8]) -> Result<(), Error> {
@@ -331,10 +384,7 @@ where
     }
 }
 
-impl<T> embedded_hal::blocking::i2c::WriteRead for I2c<T>
-where
-    T: Instance,
-{
+impl embedded_hal::blocking::i2c::WriteRead for I2c {
     type Error = Error;
 
     fn write_read<'w>(

@@ -1,10 +1,23 @@
 use crate::{
-    interrupt::{InterruptController, Irq},
-    pac::{CRG_TOP, TIMER0},
+    crg_top::CrgTop,
+    nvic::{Irq, Nvic},
+    pac::{TIMER0, CRG_TOP},
 };
 
 const SYSTEM_CLOCK_FREQ: u32 = 16_000_000;
 const LOW_POWER_CLOCK_FREQ: u32 = 32_000;
+
+/// Extension trait that constrains the `SYS_WDOG` peripheral
+pub trait Timer0Ext {
+    /// Constrains the `SYS_WDOG` peripheral so it plays nicely with the other abstractions
+    fn constrain(self) -> Timer0;
+}
+
+impl Timer0Ext for TIMER0 {
+    fn constrain(self) -> Timer0 {
+        Timer0 { timer: self }
+    }
+}
 
 #[derive(Clone, Copy)]
 #[repr(u8)]
@@ -50,10 +63,6 @@ pub struct Timer0 {
 }
 
 impl Timer0 {
-    pub fn new(timer: TIMER0) -> Self {
-        Self { timer }
-    }
-
     pub fn start(&mut self) {
         self.timer
             .timer0_ctrl_reg
@@ -80,7 +89,7 @@ impl Timer0 {
 
     pub fn init(
         &mut self,
-        interrupt_controller: &mut InterruptController,
+        interrupt_controller: &mut Nvic,
         clk_sel: ClockSel,
         pwm_mode: PwmMode,
         clk_div: TimerClockDiv,

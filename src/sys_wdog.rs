@@ -4,21 +4,28 @@ use crate::pac::SYS_WDOG;
 
 pub const WATCHDOG_DEFAULT_PERIOD: u8 = 0xC8;
 
+/// Extension trait that constrains the `SYS_WDOG` peripheral
+pub trait SysWdogExt {
+    /// Constrains the `SYS_WDOG` peripheral so it plays nicely with the other abstractions
+    fn constrain(self) -> SysWdog;
+}
+
+impl SysWdogExt for SYS_WDOG {
+    fn constrain(self) -> SysWdog {
+        SysWdog {
+            sys_wdog: self,
+            period: WATCHDOG_DEFAULT_PERIOD,
+        }
+    }
+}
+
 /// Wraps the System Watchdog (SYS_WDOG) peripheral
-pub struct SystemWatchdog {
+pub struct SysWdog {
     sys_wdog: SYS_WDOG,
     period: u8,
 }
 
-impl SystemWatchdog {
-    /// Wrap and start the watchdog
-    pub fn new(sys_wdog: SYS_WDOG) -> Self {
-        SystemWatchdog {
-            sys_wdog,
-            period: WATCHDOG_DEFAULT_PERIOD,
-        }
-    }
-
+impl SysWdog {
     pub fn start(&mut self, period: u8) {
         self.period = period;
 
@@ -46,7 +53,7 @@ impl SystemWatchdog {
     }
 }
 
-impl WatchdogEnable for SystemWatchdog {
+impl WatchdogEnable for SysWdog {
     type Time = u8;
 
     fn start<T: Into<Self::Time>>(&mut self, period: T) {
@@ -54,13 +61,13 @@ impl WatchdogEnable for SystemWatchdog {
     }
 }
 
-impl Watchdog for SystemWatchdog {
+impl Watchdog for SysWdog {
     fn feed(&mut self) {
         self.feed()
     }
 }
 
-impl WatchdogDisable for SystemWatchdog {
+impl WatchdogDisable for SysWdog {
     fn disable(&mut self) {
         self.freeze();
     }

@@ -1,8 +1,20 @@
 use crate::{
-    clock::{ClockController, PeripheralClock},
-    interrupt::{InterruptController, Irq},
+    crg_top::CrgTop,
+    nvic::{Irq, Nvic},
     pac::WKUP,
 };
+
+/// Extension trait that constrains the `CRG_TOP` peripheral
+pub trait WkupExt {
+    /// Constrains the `CRG_TOP` peripheral so it plays nicely with the other abstractions
+    fn constrain(self) -> Wkup;
+}
+
+impl WkupExt for WKUP {
+    fn constrain(self) -> Wkup {
+        Wkup { wkup: self }
+    }
+}
 
 #[repr(u8)]
 pub enum Polarity {
@@ -10,19 +22,19 @@ pub enum Polarity {
     Low = 0,
 }
 
-pub struct WakeupController {
+pub struct Wkup {
     wkup: WKUP,
 }
 
-impl WakeupController {
+impl Wkup {
     pub fn new(wkup: WKUP) -> Self {
         Self { wkup }
     }
 
     pub fn enable_irq(
         &mut self,
-        clock_controller: &mut ClockController,
-        interrupt_controller: &mut InterruptController,
+        crg_top: &mut CrgTop,
+        nvic: &mut Nvic,
         pin: u8,
         polarity: Polarity,
         events_num: u8,
@@ -30,7 +42,7 @@ impl WakeupController {
     ) {
         assert!(events_num > 0);
 
-        clock_controller.set_peripheral_clock_state(PeripheralClock::WakeupController, true);
+        crg_top.enable_peripheral::<WKUP>();
 
         // Reset event counter
         self.wkup
@@ -73,7 +85,7 @@ impl WakeupController {
             w
         });
 
-        interrupt_controller.set_priority(Irq::WakupQuadec, 2);
-        interrupt_controller.enable_irq(Irq::WakupQuadec);
+        nvic.set_priority(Irq::WakupQuadec, 2);
+        nvic.enable_irq(Irq::WakupQuadec);
     }
 }
