@@ -84,12 +84,26 @@ impl Into<bool> for InputMode {
     }
 }
 
-//     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-//     #[repr(u8)]
-//     pub enum ChopperMode {
-//         Off = 0,
-//         On,
-//     }
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Chopper {
+    Off,
+    On,
+}
+
+impl Default for Chopper {
+    fn default() -> Self {
+        Self::Off
+    }
+}
+
+impl Into<bool> for Chopper {
+    fn into(self) -> bool {
+        match self {
+            Chopper::Off => false,
+            Chopper::On => true,
+        }
+    }
+}
 
 //     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 //     #[repr(u8)]
@@ -134,10 +148,56 @@ impl Default for Attenuation {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum Averaging {
+    SamplesX1 = 0,
+    SamplesX2,
+    SamplesX4,
+    SamplesX8,
+    SamplesX16,
+    SamplesX32,
+    SamplesX128,
+}
+
+impl Default for Averaging {
+    fn default() -> Self {
+        Self::SamplesX1
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum SampleTime {
+    Cycles1X8 = 0,
+    Cycles2X8,
+    Cycles3X8,
+    Cycles4X8,
+    Cycles5X8,
+    Cycles6X8,
+    Cycles7X8,
+    Cycles8X8,
+    Cycles9X8,
+    Cycles10X8,
+    Cycles11X8,
+    Cycles12X8,
+    Cycles13X8,
+    Cycles14X8,
+    Cycles15X8,
+}
+
+impl Default for SampleTime {
+    fn default() -> Self {
+        Self::Cycles1X8
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct AdcConfig {
     pub(crate) mode: InputMode,
-    // pub(crate) chopper: ChopperMode,
+    pub(crate) chopper: Chopper,
+    pub(crate) sample_time: SampleTime,
+    pub(crate) averaging: Averaging,
     // pub(crate) mute: Mute,
     pub(crate) attenuation: Attenuation,
     pub(crate) continuous: Continuous,
@@ -150,6 +210,9 @@ impl Default for AdcConfig {
     fn default() -> Self {
         Self {
             mode: Default::default(),
+            chopper: Default::default(),
+            sample_time: Default::default(),
+            averaging: Default::default(),
             attenuation: Default::default(),
             continuous: Default::default(),
             channel_sel_pos: 0,
@@ -186,6 +249,21 @@ impl AdcConfig {
 
     pub fn set_attenuation(mut self, attenuation: Attenuation) -> Self {
         self.attenuation = attenuation;
+        self
+    }
+
+    pub fn set_chopper_mode(mut self, chopper: Chopper) -> Self {
+        self.chopper = chopper;
+        self
+    }
+
+    pub fn set_sample_time(mut self, sample_time: SampleTime) -> Self {
+        self.sample_time = sample_time;
+        self
+    }
+
+    pub fn set_averaging(mut self, averaging: Averaging) -> Self {
+        self.averaging = averaging;
         self
     }
 }

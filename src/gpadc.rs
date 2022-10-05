@@ -1,15 +1,8 @@
-use crate::{
-    cm::{delay::Delay, peripheral::SYST},
-    otpc::Otpc,
-    pac::GPADC,
-    sys_wdog::SysWdog,
-};
+use crate::pac::GPADC;
 
 pub mod config;
 
 use config::AdcConfig;
-
-const VDD_LEVEL: u16 = 900;
 
 /// Extension trait that constrains the `SYS_WDOG` peripheral
 pub trait GpAdcExt {
@@ -41,19 +34,16 @@ impl GpAdc {
     }
 
     pub fn configure(&self, adc_config: AdcConfig) {
-        // select channel(s)
         self.gpadc.gp_adc_sel_reg.modify(|_, w| unsafe {
             w.gp_adc_sel_p().bits(adc_config.channel_sel_pos);
             w.gp_adc_sel_n().bits(adc_config.channel_sel_neg)
         });
 
         self.gpadc.gp_adc_ctrl_reg.modify(|_, w| {
-            // Set differential settings
             w.gp_adc_se().bit(adc_config.mode.into());
-            // Set conversion mode
             w.gp_adc_cont().bit(adc_config.continuous.into());
-            // Enable die temp sensor if this channel was selected
-            w.die_temp_en().bit(adc_config.enable_die_temp)
+            w.die_temp_en().bit(adc_config.enable_die_temp);
+            w.gp_adc_chop().bit(adc_config.chopper.into())
         });
 
         if adc_config.enable_die_temp {
@@ -63,10 +53,11 @@ impl GpAdc {
             crate::cm::asm::delay(400);
         }
 
-        // Setup attenuation
-        self.gpadc
-            .gp_adc_ctrl2_reg
-            .modify(|_, w| unsafe { w.gp_adc_attn().bits(adc_config.attenuation as u8) });
+        self.gpadc.gp_adc_ctrl2_reg.modify(|_, w| unsafe {
+            w.gp_adc_attn().bits(adc_config.attenuation as u8);
+            w.gp_adc_conv_nrs().bits(adc_config.averaging as u8);
+            w.gp_adc_smpl_time().bits(adc_config.sample_time as u8)
+        });
     }
 
     /// Enable ADC peripheral
@@ -96,12 +87,14 @@ impl GpAdc {
         self.gpadc.gp_adc_trim_reg.reset();
     }
 
+    /// Start ADC conversion
     pub fn start_conversion(&self) {
         self.gpadc
             .gp_adc_ctrl_reg
             .modify(|_, w| w.gp_adc_start().set_bit());
     }
 
+    /// Wait for conversion to finish (in manual mode only)
     pub fn wait_for_conversion(&self) {
         while self
             .gpadc
@@ -116,6 +109,7 @@ impl GpAdc {
             .write(|w| unsafe { w.gp_adc_clr_int().bits(1) })
     }
 
+    /// Read current sample value from register
     pub fn current_sample(&self) -> u16 {
         self.gpadc.gp_adc_result_reg.read().gp_adc_val().bits()
     }
