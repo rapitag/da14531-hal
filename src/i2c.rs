@@ -55,11 +55,8 @@ struct Pins {
 }
 
 impl Pins {
-    fn new(sda: Pin<Disconnected>, scl: Pin<Disconnected>) -> Self {
-        Self {
-            scl: scl.into_alternate(),
-            sda: sda.into_alternate(),
-        }
+    fn new(sda: Pin<AfI2cSda>, scl: Pin<AfI2cScl>) -> Self {
+        Self { scl, sda }
     }
 }
 
@@ -71,7 +68,7 @@ pub struct I2c {
 }
 
 impl I2c {
-    pub fn set_pins(mut self, sda: Pin<Disconnected>, scl: Pin<Disconnected>) -> Self {
+    pub fn set_pins(mut self, sda: Pin<AfI2cSda>, scl: Pin<AfI2cScl>) -> Self {
         self.pins = Some(Pins::new(sda, scl));
         self
     }
