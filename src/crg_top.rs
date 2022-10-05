@@ -26,17 +26,17 @@ pub trait CrgTopExt {
 }
 
 macro_rules! peripheral_clock_enable {
-    ($($PER:ident => $field:ident,)+) => {
+    ($($PER:ident => ($reg:ident, $field:ident),)+) => {
         $(
             impl crate::Sealed for crate::pac::$PER {}
 
             impl Enable for crate::pac::$PER {
                 fn enable(crg_top: &CrgTopRB) {
-                    crg_top.clk_per_reg.modify(|_, w| w.$field().set_bit());
+                    crg_top.$reg.modify(|_, w| w.$field().set_bit());
                 }
 
                 fn disable(crg_top: &CrgTopRB) {
-                    crg_top.clk_per_reg.modify(|_, w| w.$field().clear_bit());
+                    crg_top.$reg.modify(|_, w| w.$field().clear_bit());
                 }
             }
 
@@ -45,14 +45,15 @@ macro_rules! peripheral_clock_enable {
 }
 
 peripheral_clock_enable!(
-    QUADEC => quad_enable,
-    SPI => spi_enable,
-    UART => uart1_enable,
-    UART2 => uart2_enable,
-    I2C => i2c_enable,
-    WKUP => wakeupct_enable,
-    TIMER0 => tmr_enable,
-    TIMER1 => tmr_enable,
+    QUADEC => (clk_per_reg, quad_enable),
+    SPI => (clk_per_reg, spi_enable),
+    UART => (clk_per_reg, uart1_enable),
+    UART2 => (clk_per_reg, uart2_enable),
+    I2C => (clk_per_reg, i2c_enable),
+    WKUP => (clk_per_reg, wakeupct_enable),
+    TIMER0 => (clk_per_reg, tmr_enable),
+    TIMER1 => (clk_per_reg, tmr_enable),
+    OTPC => (clk_amba_reg, otp_enable),
 );
 
 impl CrgTopExt for CRG_TOP {
