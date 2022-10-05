@@ -1,11 +1,12 @@
 #![no_std]
 
-pub mod adc;
 pub mod crg_aon;
 pub mod crg_top;
+pub mod gpadc;
 pub mod gpio;
 pub mod i2c;
 pub mod nvic;
+pub mod otpc;
 pub mod sys_wdog;
 pub mod timer;
 pub mod wkup;
