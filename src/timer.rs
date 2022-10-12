@@ -1,7 +1,6 @@
 use crate::{
-    crg_top::CrgTop,
     nvic::{Irq, Nvic},
-    pac::{TIMER0, CRG_TOP},
+    pac::{CRG_TOP, TIMER0},
 };
 
 const SYSTEM_CLOCK_FREQ: u32 = 16_000_000;

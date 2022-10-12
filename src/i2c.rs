@@ -4,7 +4,7 @@ use core::ops::Deref;
 
 use crate::{
     crg_top::CrgTop,
-    gpio::{AfI2cScl, AfI2cSda, Disconnected, Pin},
+    gpio::{AfI2cScl, AfI2cSda, Pin},
     pac::{i2c, I2C},
 };
 
@@ -50,13 +50,16 @@ impl Default for AddressingMode {
 }
 
 struct Pins {
-    sda: Pin<AfI2cSda>,
-    scl: Pin<AfI2cScl>,
+    _sda: Pin<AfI2cSda>,
+    _scl: Pin<AfI2cScl>,
 }
 
 impl Pins {
     fn new(sda: Pin<AfI2cSda>, scl: Pin<AfI2cScl>) -> Self {
-        Self { scl, sda }
+        Self {
+            _scl: scl,
+            _sda: sda,
+        }
     }
 }
 

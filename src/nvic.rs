@@ -1,5 +1,5 @@
 use crate::cm::interrupt::InterruptNumber;
-use crate::pac::{NVIC, TIMER0};
+use crate::pac::NVIC;
 
 use crate::cm::peripheral::nvic::RegisterBlock as NvicRB;
 
