@@ -1,8 +1,24 @@
 [package]
+categories = [
+  "embedded",
+  "hardware-support",
+  "no-std",
+]
+description = "HAL crate for the DA14531 microcontroller"
+documentation = "https://docs.rs/da14531-hal"
 edition = "2021"
-rust-version = "1.60"
-
+keywords = [
+  "cortex-m",
+  "svd2rust",
+  "embedded",
+  "da14531",
+  "no_std",
+]
+license = "MIT"
 name = "da14531-hal"
+readme = "README.md"
+repository = "https://github.com/rapitag/da14531-hal"
+rust-version = "1.60"
 version = "0.2.2"
 
 [dependencies]
