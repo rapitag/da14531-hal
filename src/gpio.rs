@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use void::Void;
 
 use crate::{
-    hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin},
+    hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin, PinState},
     pac::{gpio, GPIO as P0},
 };
 
@@ -66,13 +66,6 @@ alternate_functions! {
     SpiClk:     (28, 0b01),
     SpiCsn0:    (29, 0b01),
     SpiCsn1:    (30, 0b01)
-}
-
-/// Represents a digital input or output level.
-#[derive(Debug, Eq, PartialEq)]
-pub enum Level {
-    Low,
-    High,
 }
 
 // ===============================================================
@@ -154,15 +147,15 @@ impl<MODE> Pin<MODE> {
     }
 
     /// Convert the pin to be a push-pull output with normal drive.
-    pub fn into_output(self, initial_output: Level) -> Pin<Output> {
+    pub fn into_output(self, initial_output: PinState) -> Pin<Output> {
         let mut pin = Pin {
             _mode: PhantomData,
             pin: self.pin,
         };
 
         match initial_output {
-            Level::Low => pin.set_low().unwrap(),
-            Level::High => pin.set_high().unwrap(),
+            PinState::Low => pin.set_low().unwrap(),
+            PinState::High => pin.set_high().unwrap(),
         }
 
         self.pin_mode().write(|w| {
@@ -272,7 +265,7 @@ macro_rules! gpio {
                 Floating,
                 Disconnected,
                 Input,
-                Level,
+                PinState,
                 Output,
                 PullDown,
                 PullUp,
@@ -363,7 +356,7 @@ macro_rules! gpio {
                     }
 
                     /// Convert the pin to bepin a push-pull output with normal drive
-                    pub fn into_output(self, initial_output: Level)
+                    pub fn into_output(self, initial_output: PinState)
                         -> $PXi<Output>
                     {
                         let mut pin = $PXi {
@@ -371,8 +364,8 @@ macro_rules! gpio {
                         };
 
                         match initial_output {
-                            Level::Low  => pin.set_low().unwrap(),
-                            Level::High => pin.set_high().unwrap(),
+                            PinState::Low  => pin.set_low().unwrap(),
+                            PinState::High => pin.set_high().unwrap(),
                         }
 
                         unsafe { &(*$PX::ptr()).p0_mode_reg[$i] }.write(|w| {
