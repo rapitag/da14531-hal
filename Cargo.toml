@@ -9,7 +9,6 @@ documentation = "https://docs.rs/da14531-hal"
 edition = "2021"
 keywords = [
   "cortex-m",
-  "svd2rust",
   "embedded",
   "da14531",
   "no_std",
