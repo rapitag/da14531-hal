@@ -5,6 +5,7 @@ use core::ops::Deref;
 use crate::{
     crg_top::CrgTop,
     gpio::{AfI2cScl, AfI2cSda, Pin},
+    nvic::{Irq, Nvic},
     pac::{i2c, I2C},
 };
 
@@ -86,7 +87,7 @@ impl I2c {
         self
     }
 
-    pub fn start(&self, crg_top: &CrgTop) {
+    pub fn start(&self, nvic: &mut Nvic, crg_top: &CrgTop) {
         assert!(self.pins.is_some());
 
         // Enable peripheral clock
@@ -109,6 +110,13 @@ impl I2c {
         self.i2c
             .i2c_ss_scl_lcnt_reg
             .write(|w| unsafe { w.bits(0x0000004F) });
+
+        self.i2c
+            .i2c_fs_scl_hcnt_reg
+            .write(|w| unsafe { w.bits(0x00000008) });
+        self.i2c
+            .i2c_fs_scl_lcnt_reg
+            .write(|w| unsafe { w.bits(0x00000017) });
 
         self.i2c.i2c_con_reg.write(|w| {
             // Configure the speed mode
@@ -149,6 +157,9 @@ impl I2c {
 
         // There is a two ic_clk delay when enabling or disabling the controller
         while !self.i2c.i2c_enable_reg.read().ctrl_enable().bit() {}
+
+        nvic.set_priority(Irq::I2c, 2);
+        nvic.enable_irq(Irq::I2c);
     }
 
     fn send_byte(&self, byte: u8) -> Result<(), Error> {

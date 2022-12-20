@@ -3,9 +3,9 @@ use crate::pac::NVIC;
 
 use crate::cm::peripheral::nvic::RegisterBlock as NvicRB;
 
-/// Extension trait that constrains the `SYS_WDOG` peripheral
+/// Extension trait that constrains the `NVIC` peripheral
 pub trait NvicExt {
-    /// Constrains the `SYS_WDOG` peripheral so it plays nicely with the other abstractions
+    /// Constrains the `NVIC` peripheral so it plays nicely with the other abstractions
     fn constrain(self) -> Nvic;
 }
 
@@ -57,6 +57,8 @@ pub trait Interrupt {
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Irq {
+    /// I2C Interrupt Request.
+    I2c = 4,
     /// Analog-Digital Converter Interrupt Request.
     Adc = 6,
     /// GPIO Interrupt Request through debounce.
