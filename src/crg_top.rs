@@ -32,11 +32,15 @@ macro_rules! peripheral_clock_enable {
 
             impl Enable for crate::pac::$PER {
                 fn enable(crg_top: &CrgTopRB) {
-                    crg_top.$reg.modify(|_, w| w.$field().set_bit());
+                    crate::cm::interrupt::free(|_| {
+                        crg_top.$reg.modify(|_, w| w.$field().set_bit());
+                    });
                 }
 
                 fn disable(crg_top: &CrgTopRB) {
-                    crg_top.$reg.modify(|_, w| w.$field().clear_bit());
+                    crate::cm::interrupt::free(|_| {
+                        crg_top.$reg.modify(|_, w| w.$field().clear_bit());
+                    });
                 }
             }
 
