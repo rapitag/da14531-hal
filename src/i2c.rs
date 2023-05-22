@@ -121,7 +121,7 @@ impl I2c {
                 // * sdk/sdk/platform/driver/i2c/i2c.h:288
                 w.i2c_speed().bits(match self.speed {
                     Speed::Standard => 1,
-                    Speed::FullSpeed => 0,
+                    Speed::FullSpeed => 2,
                 });
             }
 
@@ -177,9 +177,11 @@ impl I2c {
                 w
             });
         });
+        
+        // Wait until TX FIFO is empty
+        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
 
-        // Wait until master has finished reading the response byte from slave device
-        // while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
+        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
 
         // Read the I2C_TX_ABRT_SOURCE_REG register
         let abort_source = self.i2c.i2c_tx_abrt_source_reg.read().bits();
@@ -205,6 +207,18 @@ impl I2c {
                 w
             });
         });
+        
+        // Wait until TX FIFO is empty
+        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
+
+        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
+
+        // Read the I2C_TX_ABRT_SOURCE_REG register
+        let abort_source = self.i2c.i2c_tx_abrt_source_reg.read().bits();
+        if abort_source != 0 {
+            self.i2c.i2c_clr_tx_abrt_reg.read().bits();
+            return Err(Error::Transmit)
+        }
 
         // Wait for received data
         while self.i2c.i2c_rxflr_reg.read().rxflr().bits() == 0 {}
@@ -238,7 +252,6 @@ impl I2c {
 
         // Read into buffer.
         for (idx, byte) in buffer.iter_mut().enumerate() {
-            self.send_byte(*byte, (idx + 1) == buffer_length)?;
             *byte = self.recv_byte((idx + 1) == buffer_length)?;
         }
 
