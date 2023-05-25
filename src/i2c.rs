@@ -181,8 +181,6 @@ impl I2c {
         // Wait until TX FIFO is empty
         while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
 
-        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
-
         // Read the I2C_TX_ABRT_SOURCE_REG register
         let abort_source = self.i2c.i2c_tx_abrt_source_reg.read().bits();
         if abort_source != 0 {
@@ -207,9 +205,6 @@ impl I2c {
                 w
             });
         });
-        
-        // Wait until TX FIFO is empty
-        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
 
         while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
 
