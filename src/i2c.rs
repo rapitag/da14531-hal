@@ -26,11 +26,13 @@ impl I2cExt for I2C {
     }
 }
 
+#[repr(u8)]
+#[derive(Debug, Clone, Copy)]
 pub enum Speed {
     /// 100 kbit/s
-    Standard,
+    Standard = 1,
     /// 400 kbit/s
-    FullSpeed,
+    Fast = 0,
 }
 
 impl Default for Speed {
@@ -87,6 +89,9 @@ impl I2c {
         self
     }
 
+    /// Initialize I2C peripheral
+    /// See:
+    /// * sdk/sdk/platform/driver/i2c/i2c.c:126-179
     pub fn start(&mut self, nvic: &mut Nvic, crg_top: &CrgTop) {
         assert!(self.pins.is_some());
 
@@ -117,12 +122,9 @@ impl I2c {
             // Configure the speed mode
             unsafe {
                 // See:
-                // * sdk/sdk/platform/driver/i2c/i2c.c:154
+                // * sdk/sdk/platform/driver/i2c/i2c.c:152
                 // * sdk/sdk/platform/driver/i2c/i2c.h:288
-                w.i2c_speed().bits(match self.speed {
-                    Speed::Standard => 1,
-                    Speed::FullSpeed => 2,
-                });
+                w.i2c_speed().bits(self.speed as u8);
             }
 
             // Setup as I2C master
@@ -158,8 +160,7 @@ impl I2c {
     }
 
     fn send_byte(&self, byte: u8, stop: bool) -> Result<(), Error> {
-        // Wait until TX FIFO is empty
-        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
+        self.wait_while_tx_fifo_full();
 
         crate::cm::interrupt::free(|_| {
             // Prepare to transmit the write command byte
@@ -177,9 +178,6 @@ impl I2c {
                 w
             });
         });
-        
-        // Wait until TX FIFO is empty
-        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
 
         // Read the I2C_TX_ABRT_SOURCE_REG register
         let abort_source = self.i2c.i2c_tx_abrt_source_reg.read().bits();
@@ -192,8 +190,7 @@ impl I2c {
     }
 
     fn recv_byte(&self, stop: bool) -> Result<u8, Error> {
-        // Wait until TX FIFO is empty
-        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
+        self.wait_while_tx_fifo_full();
 
         crate::cm::interrupt::free(|_| {
             // Prepare to transmit the read command byte
@@ -206,25 +203,17 @@ impl I2c {
             });
         });
 
-        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
+        // Wait for received data
+        while self.get_rx_fifo_bytes() == 0 {}
+
+        let out = self.i2c.i2c_data_cmd_reg.read().dat().bits();
 
         // Read the I2C_TX_ABRT_SOURCE_REG register
         let abort_source = self.i2c.i2c_tx_abrt_source_reg.read().bits();
         if abort_source != 0 {
             self.i2c.i2c_clr_tx_abrt_reg.read().bits();
-            return Err(Error::Transmit)
+            return Err(Error::Transmit);
         }
-
-        // Wait for received data
-        while self.i2c.i2c_rxflr_reg.read().rxflr().bits() == 0 {}
-
-        let out = self.i2c.i2c_data_cmd_reg.read().dat().bits();
-
-        // Wait until TX FIFO is empty
-        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
-
-        // Wait until master has finished reading the byte from slave device
-        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
 
         Ok(out)
     }
@@ -237,6 +226,9 @@ impl I2c {
         for (idx, byte) in buffer.iter().enumerate() {
             self.send_byte(*byte, (idx + 1) == buffer_length)?;
         }
+
+        self.wait_while_tx_fifo_not_completely_empty();
+        self.wait_while_master_busy();
 
         Ok(())
     }
@@ -284,6 +276,22 @@ impl I2c {
             .i2c_enable_reg
             .modify(|_, w| w.ctrl_enable().clear_bit());
         while self.i2c.i2c_enable_reg.read().ctrl_enable().bit() {}
+    }
+
+    fn wait_while_tx_fifo_full(&self) {
+        while self.i2c.i2c_status_reg.read().tfnf().bit_is_clear() {}
+    }
+
+    fn wait_while_tx_fifo_not_completely_empty(&self) {
+        while self.i2c.i2c_status_reg.read().tfe().bit_is_clear() {}
+    }
+
+    fn wait_while_master_busy(&self) {
+        while self.i2c.i2c_status_reg.read().mst_activity().bit_is_set() {}
+    }
+
+    fn get_rx_fifo_bytes(&self) -> usize {
+        self.i2c.i2c_rxflr_reg.read().rxflr().bits().into()
     }
 }
 
