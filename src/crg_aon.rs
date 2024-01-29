@@ -27,7 +27,7 @@ pub mod sleep {
 
     use super::CrgAon;
 
-    #[derive(PartialEq, Copy, Clone)]
+    #[derive(Debug, PartialEq, Copy, Clone)]
     #[repr(u8)]
     pub enum RemapAddr {
         ToRom = 0,
@@ -42,7 +42,7 @@ pub mod sleep {
         }
     }
 
-    #[derive(Clone, Default)]
+    #[derive(Debug, Clone, Default)]
     pub struct SleepConfig {
         pin_mask: u8,
         ram1_on: bool,
@@ -145,6 +145,8 @@ pub mod sleep {
             scb.set_sleepdeep();
 
             // Configure the state of RAM blocks during hibernation mode
+            // Values are inverted in the registers: 1=off, 0=on
+            // See: sdk/platform/arch/arch_api.h line 79-86
             crg_top.set_ram_pwr_ctrl(
                 (!sleep_config.ram1_on) as u8,
                 (!sleep_config.ram2_on) as u8,
@@ -254,11 +256,11 @@ pub mod sleep {
     }
 
     wakeup_pins!(
-        P0_01 => 1,
-        P0_02 => 2,
-        P0_03 => 3,
-        P0_04 => 4,
-        P0_05 => 5,
+        P0_01 => 0,
+        P0_02 => 1,
+        P0_03 => 2,
+        P0_04 => 3,
+        P0_05 => 4,
 
     );
 }
