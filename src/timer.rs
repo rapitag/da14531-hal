@@ -6,9 +6,9 @@ use crate::{
 const SYSTEM_CLOCK_FREQ: u32 = 16_000_000;
 const LOW_POWER_CLOCK_FREQ: u32 = 32_000;
 
-/// Extension trait that constrains the `SYS_WDOG` peripheral
+/// Extension trait that constrains the `TIMER0` peripheral
 pub trait Timer0Ext {
-    /// Constrains the `SYS_WDOG` peripheral so it plays nicely with the other abstractions
+    /// Constrains the `TIMER0` peripheral so it plays nicely with the other abstractions
     fn constrain(self) -> Timer0;
 }
 
