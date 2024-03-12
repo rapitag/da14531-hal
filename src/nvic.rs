@@ -61,6 +61,8 @@ pub enum Irq {
     I2c = 4,
     /// Analog-Digital Converter Interrupt Request.
     Adc = 6,
+    /// Baseband or Radio Diagnostics Interrupt. Required for signaling Radio or Baseband internal events. 2 signals per Radio and 2 per BB
+    BleRfDiag = 8,
     /// GPIO Interrupt Request through debounce.
     Gpio0 = 10,
     /// GPIO Interrupt Request through debounce.
