@@ -3,7 +3,7 @@ use core::marker::PhantomData;
 use void::Void;
 
 use crate::{
-    hal::digital::v2::{InputPin, OutputPin, StatefulOutputPin, PinState},
+    hal::digital::v2::{InputPin, OutputPin, PinState, StatefulOutputPin},
     pac::{gpio, GPIO as P0},
 };
 
@@ -52,7 +52,7 @@ alternate_functions! {
     Pwm5:       (11, 0b11),
     Pwm6:       (12, 0b11),
     Pwm7:       (13, 0b11),
-    Adc:        (15, 0b01),
+    Adc:        (15, 0b00),
     Pwm0:       (16, 0b11),
     Pwm1:       (17, 0b11),
     BleDiag:    (18, 0b01),
@@ -172,13 +172,9 @@ impl<MODE> Pin<MODE> {
     pub fn into_alternate<const PID: u8, const PUPD: u8>(
         self,
     ) -> Pin<AlternateFunction<PID, PUPD>> {
-        self.pin_mode().write(|w| {
-            unsafe {
-                w.pupd().bits(PUPD);
-                w.pid().bits(PID);
-            }
-            w
-        });
+        self.pin_mode()
+            .modify(|_, w| unsafe { w.pupd().bits(PUPD).pid().bits(PID) });
+
 
         Pin {
             _mode: PhantomData,
