@@ -192,18 +192,42 @@ impl Default for SampleTime {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum Shifter {
+    Off,
+    On,
+}
+
+impl Default for Shifter {
+    fn default() -> Self {
+        Self::Off
+    }
+}
+
+impl Into<bool> for Shifter {
+    fn into(self) -> bool {
+        match self {
+            Shifter::Off => false,
+            Shifter::On => true,
+        }
+    }
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct AdcConfig {
     pub(crate) mode: InputMode,
     pub(crate) chopper: Chopper,
     pub(crate) sample_time: SampleTime,
     pub(crate) averaging: Averaging,
+    pub(crate) shifter: Shifter,
     // pub(crate) mute: Mute,
     pub(crate) attenuation: Attenuation,
     pub(crate) continuous: Continuous,
     pub(crate) channel_sel_pos: u8,
     pub(crate) channel_sel_neg: u8,
     pub(crate) enable_die_temp: bool, // pub(crate) vddd: u32
+    pub(crate) adc_trim_val: u16,
 }
 
 impl Default for AdcConfig {
@@ -215,9 +239,11 @@ impl Default for AdcConfig {
             averaging: Default::default(),
             attenuation: Default::default(),
             continuous: Default::default(),
+            shifter: Default::default(),
             channel_sel_pos: 0,
             channel_sel_neg: 0,
             enable_die_temp: false,
+            adc_trim_val: 0,
         }
     }
 }
@@ -264,6 +290,16 @@ impl AdcConfig {
 
     pub fn set_averaging(mut self, averaging: Averaging) -> Self {
         self.averaging = averaging;
+        self
+    }
+
+    pub fn set_shifter(mut self, shifter: Shifter) -> Self {
+        self.shifter = shifter;
+        self
+    }
+
+    pub fn set_adc_trim_val(mut self, val: u16) -> Self {
+        self.adc_trim_val = val;
         self
     }
 }

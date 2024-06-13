@@ -27,23 +27,30 @@ impl GpAdc {
         // Set GP_ADC_LDO_LEVEL to the preferred level of 925mV
         self.gpadc
             .gp_adc_trim_reg
-            .modify(|_, w| unsafe { w.gp_adc_ldo_level().bits(0x4) });
+            .modify(|_, w| unsafe { w.bits(adc_config.adc_trim_val).gp_adc_ldo_level().bits(0x4) });
+
+        self.configure(adc_config);
 
         self.enable();
-        self.configure(adc_config);
     }
 
     pub fn configure(&self, adc_config: AdcConfig) {
-        self.gpadc.gp_adc_sel_reg.modify(|_, w| unsafe {
-            w.gp_adc_sel_p().bits(adc_config.channel_sel_pos);
-            w.gp_adc_sel_n().bits(adc_config.channel_sel_neg)
+        self.gpadc.gp_adc_ctrl_reg.modify(|_, w| {
+            w.gp_adc_se()
+                .bit(adc_config.mode.into())
+                .gp_adc_cont()
+                .bit(adc_config.continuous.into())
+                .die_temp_en()
+                .bit(adc_config.enable_die_temp)
+                .gp_adc_chop()
+                .bit(adc_config.chopper.into())
         });
 
-        self.gpadc.gp_adc_ctrl_reg.modify(|_, w| {
-            w.gp_adc_se().bit(adc_config.mode.into());
-            w.gp_adc_cont().bit(adc_config.continuous.into());
-            w.die_temp_en().bit(adc_config.enable_die_temp);
-            w.gp_adc_chop().bit(adc_config.chopper.into())
+        self.gpadc.gp_adc_sel_reg.modify(|_, w| unsafe {
+            w.gp_adc_sel_p()
+                .bits(adc_config.channel_sel_pos)
+                .gp_adc_sel_n()
+                .bits(adc_config.channel_sel_neg)
         });
 
         if adc_config.enable_die_temp {
@@ -54,9 +61,14 @@ impl GpAdc {
         }
 
         self.gpadc.gp_adc_ctrl2_reg.modify(|_, w| unsafe {
-            w.gp_adc_attn().bits(adc_config.attenuation as u8);
-            w.gp_adc_conv_nrs().bits(adc_config.averaging as u8);
-            w.gp_adc_smpl_time().bits(adc_config.sample_time as u8)
+            w.gp_adc_offs_sh_en()
+                .bit(adc_config.shifter.into())
+                .gp_adc_attn()
+                .bits(adc_config.attenuation as u8)
+                .gp_adc_conv_nrs()
+                .bits(adc_config.averaging as u8)
+                .gp_adc_smpl_time()
+                .bits(adc_config.sample_time as u8)
         });
     }
 
@@ -85,6 +97,20 @@ impl GpAdc {
         self.gpadc.gp_adc_ctrl3_reg.reset();
         self.gpadc.gp_adc_sel_reg.reset();
         self.gpadc.gp_adc_trim_reg.reset();
+    }
+
+    /// Enable 2u constant current sink for LDO
+    pub fn enable_20u_sink(&self) {
+        self.gpadc
+            .gp_adc_ctrl2_reg
+            .modify(|_, w| w.gp_adc_i20u().set_bit());
+    }
+
+    /// Enable 2u constant current sink for LDO
+    pub fn disable_20u_sink(&self) {
+        self.gpadc
+            .gp_adc_ctrl2_reg
+            .modify(|_, w| w.gp_adc_i20u().clear_bit());
     }
 
     /// Start ADC conversion
