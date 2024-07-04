@@ -2,7 +2,7 @@ use crate::pac::GPADC;
 
 pub mod config;
 
-use config::AdcConfig;
+use config::{AdcConfig, Averaging, SampleTime};
 
 /// Extension trait that constrains the `SYS_WDOG` peripheral
 pub trait GpAdcExt {
@@ -21,6 +21,71 @@ pub struct GpAdc {
 }
 
 impl GpAdc {
+    pub fn calibrate_offset(&self, adc_trim_val: u16) {
+        // Configure for calibration
+        self.init(
+            AdcConfig::default()
+                .set_adc_trim_val(adc_trim_val)
+                .set_sample_time(SampleTime::Cycles1X8)
+                .set_averaging(Averaging::SamplesX128),
+        );
+        self.enable_20u_sink();
+
+        // Try once to calibrate correctly
+
+        self.gpadc
+            .gp_adc_offp_reg
+            .modify(|_, w| unsafe { w.gp_adc_offp().bits(0x200) });
+        self.gpadc
+            .gp_adc_offn_reg
+            .modify(|_, w| unsafe { w.gp_adc_offn().bits(0x200) });
+        self.gpadc
+            .gp_adc_ctrl_reg
+            .modify(|_, w| w.gp_adc_mute().set_bit().gp_adc_sign().clear_bit());
+
+        self.start_conversion();
+        self.wait_for_conversion();
+        let adc_val = self.current_sample();
+        let adc_off_p = (adc_val >> 6) - 0x200;
+
+        self.gpadc
+            .gp_adc_ctrl_reg
+            .modify(|_, w| w.gp_adc_sign().set_bit());
+
+        self.start_conversion();
+        self.wait_for_conversion();
+        let adc_val = self.current_sample();
+        let adc_off_n = (adc_val >> 6) - 0x200;
+
+        self.gpadc
+            .gp_adc_offp_reg
+            .modify(|_, w| unsafe { w.gp_adc_offp().bits(0x200 - 2 * adc_off_p) });
+
+        self.gpadc
+            .gp_adc_offn_reg
+            .modify(|_, w| unsafe { w.gp_adc_offn().bits(0x200 - 2 * adc_off_n) });
+
+        self.gpadc
+            .gp_adc_ctrl_reg
+            .modify(|_, w| w.gp_adc_sign().clear_bit());
+
+        // Verify the calibration result
+
+        self.start_conversion();
+        self.wait_for_conversion();
+        let adc_val = self.current_sample() >> 6;
+
+        let diff = if adc_val > 0x200 {
+            adc_val - 0x200
+        } else {
+            0x200 - adc_val
+        };
+
+        if diff >= 0x8 {
+            // Calibration failed
+        }
+    }
+
     pub fn init(&self, adc_config: AdcConfig) {
         self.reset();
 
@@ -113,6 +178,20 @@ impl GpAdc {
             .modify(|_, w| w.gp_adc_i20u().clear_bit());
     }
 
+    /// Enable 2u constant current sink for LDO
+    pub fn enable_shifter(&self) {
+        self.gpadc
+            .gp_adc_ctrl2_reg
+            .modify(|_, w| w.gp_adc_offs_sh_en().set_bit());
+    }
+
+    /// Enable 2u constant current sink for LDO
+    pub fn disable_shifter(&self) {
+        self.gpadc
+            .gp_adc_ctrl2_reg
+            .modify(|_, w| w.gp_adc_offs_sh_en().clear_bit());
+    }
+
     /// Start ADC conversion
     pub fn start_conversion(&self) {
         self.gpadc
@@ -138,5 +217,37 @@ impl GpAdc {
     /// Read current sample value from register
     pub fn current_sample(&self) -> u16 {
         self.gpadc.gp_adc_result_reg.read().gp_adc_val().bits()
+    }
+
+    pub fn correction_apply(&self, gain_error: i16, offset: i16, sample: u16) -> u16 {
+        let res = (u16::MAX as f32 * sample as f32) / (u16::MAX as f32 + gain_error as f32);
+        let res = res - (u16::MAX as f32 * offset as f32) / (u16::MAX as f32 + gain_error as f32);
+
+        // Boundary check for lower limit
+        if res > 2.0 * u16::MAX as f32 {
+            return 0;
+        }
+
+        // Boundary check for upper limit
+        if res > u16::MAX as f32 {
+            return u16::MAX;
+        }
+
+        res as u16
+    }
+
+    pub fn has_shifter(&self) -> bool {
+        self.gpadc.gp_adc_ctrl2_reg.read().gp_adc_offs_sh_en().bit()
+    }
+
+    pub fn convert_to_voltage(&self, sample: u16) -> f32 {
+        // TODO: This need to be fixed
+        // 1bit = 1.526e-5 (1/0xffff)
+        // 0xffff => get_max_value() (calculated based on attenuation)
+        
+        // let attn = self.gpadc.gp_adc_ctrl2_reg.read().gp_adc_attn().bits() + 1;
+        let factor = 3.6 / 0xffff as f32;
+
+        sample as f32 * factor
     }
 }
