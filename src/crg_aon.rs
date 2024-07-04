@@ -121,7 +121,8 @@ pub mod sleep {
             // Debugger must be disabled before entering a sleep mode. Wait until debugger has been disabled.
             while crg_top.is_dbg_up() {}
 
-            crg_top.disable_dbg();
+            // Disable the debugger
+            crg_top.set_dbg_state(0);
 
             // Set the wake up pins
             self.crg_aon

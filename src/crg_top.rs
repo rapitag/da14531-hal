@@ -117,10 +117,10 @@ impl CrgTop {
     }
 
     #[inline]
-    pub fn disable_dbg(&mut self) {
+    pub fn set_dbg_state(&mut self, state: u8) {
         self.crg_top
             .sys_ctrl_reg
-            .modify(|_, w| unsafe { w.debugger_enable().bits(0) });
+            .modify(|_, w| unsafe { w.debugger_enable().bits(state) });
     }
 
     #[inline]
