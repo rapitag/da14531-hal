@@ -251,7 +251,7 @@ impl Default for AdcConfig {
 impl AdcConfig {
     pub fn set_channel_pos<P: Channel<GPADC, ID = u8> + AdcInputPositive>(
         mut self,
-        _pin: P,
+        _pin: &P,
     ) -> Self {
         let channel = P::channel() as u8;
         self.channel_sel_pos = channel;
