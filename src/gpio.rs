@@ -61,11 +61,11 @@ alternate_functions! {
     Pwm2:       (23, 0b11),
     Pwm3:       (24, 0b11),
     Pwm4:       (25, 0b11),
-    SpiDi:      (26, 0b01),
-    SpiDo:      (27, 0b01),
-    SpiClk:     (28, 0b01),
-    SpiCsn0:    (29, 0b01),
-    SpiCsn1:    (30, 0b01)
+    SpiDi:      (26, 0b00),
+    SpiDo:      (27, 0b11),
+    SpiClk:     (28, 0b11),
+    SpiEn1:      (29, 0b11),
+    SpiEn2:      (30, 0b11)
 }
 
 // ===============================================================
@@ -174,7 +174,6 @@ impl<MODE> Pin<MODE> {
     ) -> Pin<AlternateFunction<PID, PUPD>> {
         self.pin_mode()
             .modify(|_, w| unsafe { w.pupd().bits(PUPD).pid().bits(PID) });
-
 
         Pin {
             _mode: PhantomData,
@@ -314,10 +313,9 @@ macro_rules! gpio {
                     pub fn into_floating_input(self) -> $PXi<Input<Floating>> {
                         unsafe { &(*$PX::ptr()).p0_mode_reg[$i] }.write(|w| {
                             unsafe {
-                                w.pupd().bits(0b00);
-                                w.pid().bits(0);
+                                w.pupd().bits(0b00)
+                                .pid().bits(0)
                             }
-                            w
                         });
 
                         $PXi {
@@ -327,10 +325,9 @@ macro_rules! gpio {
                     pub fn into_pulldown_input(self) -> $PXi<Input<PullDown>> {
                         unsafe { &(*$PX::ptr()).p0_mode_reg[$i] }.write(|w| {
                             unsafe {
-                                w.pupd().bits(0b01);
-                                w.pid().bits(0);
+                                w.pupd().bits(0b01)
+                                .pid().bits(0)
                             }
-                            w
                         });
 
                         $PXi {
@@ -340,10 +337,9 @@ macro_rules! gpio {
                     pub fn into_pullup_input(self) -> $PXi<Input<PullUp>> {
                         unsafe { &(*$PX::ptr()).p0_mode_reg[$i] }.write(|w| {
                             unsafe {
-                                w.pupd().bits(0b10);
-                                w.pid().bits(0);
+                                w.pupd().bits(0b10)
+                                .pid().bits(0)
                             }
-                            w
                         });
 
                         $PXi {
@@ -366,10 +362,9 @@ macro_rules! gpio {
 
                         unsafe { &(*$PX::ptr()).p0_mode_reg[$i] }.write(|w| {
                             unsafe {
-                                w.pupd().bits(0b11);
-                                w.pid().bits(0);
+                                w.pupd().bits(0b11)
+                                .pid().bits(0)
                             }
-                            w
                         });
 
                         pin
@@ -382,10 +377,33 @@ macro_rules! gpio {
 
                         unsafe { &(*$PX::ptr()).p0_mode_reg[$i] }.write(|w| {
                             unsafe {
-                                w.pupd().bits(PUPD);
-                                w.pid().bits(PID);
+                                w.pupd().bits(PUPD)
+                                .pid().bits(PID)
                             }
-                            w
+                        });
+
+                        pin
+                    }
+
+                    pub fn into_alternate_with_state<const PID: u8>(self, initial_output: PinState) -> $PXi<AlternateFunction<PID, 0b11>> {
+                        let pin = $PXi {
+                            _mode: PhantomData,
+                        };
+
+                        match initial_output {
+                            PinState::Low  => {
+                                unsafe { (*$PX::ptr()).p0_set_data_reg.write(|w| w.bits(1u16 << $i)); }
+                            },
+                            PinState::High => {
+                                unsafe { (*$PX::ptr()).p0_reset_data_reg.write(|w| w.bits(1u16 << $i)); }
+                            }
+                        }
+
+                        unsafe { &(*$PX::ptr()).p0_mode_reg[$i] }.write(|w| {
+                            unsafe {
+                                w.pupd().bits(0b11)
+                                .pid().bits(PID)
+                            }
                         });
 
                         pin
