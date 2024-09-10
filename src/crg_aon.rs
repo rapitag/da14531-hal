@@ -228,6 +228,12 @@ pub mod sleep {
             // Enter Deep Sleep Mode
             crate::cm::asm::wfi();
         }
+
+        pub fn hw_reset_state(&mut self, enabled: bool) {
+            self.crg_aon
+                .hwr_ctrl_reg
+                .modify(|_, w| w.disable_hwr().bit(!enabled));
+        }
     }
 
     pub trait WakeupPin {
