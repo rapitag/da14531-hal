@@ -15,6 +15,8 @@ pub use cortex_m as cm;
 pub use da14531 as pac;
 pub use embedded_hal as hal;
 
+// Sealed is used in macro and gives false positive warning here
+#[allow(dead_code)]
 mod sealed {
     pub trait Sealed {}
 }
